@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lineup View</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>Lineup View <a class="pagelink" href="/dashboard">Dashboard &rarr;</a></h1>
+    <div class="controls">
+      <input id="user" type="text" placeholder="Sleeper username or user_id" />
+      <button id="load">Load</button>
+      <label class="live-toggle">
+        <input type="checkbox" id="liveOnly" />
+        Playing now only
+      </label>
+      <label class="live-toggle">
+        <input type="checkbox" id="activeOnly" />
+        Active only
+      </label>
+      <label class="live-toggle">
+        <input type="checkbox" id="allPlayers" />
+        All players (tags)
+      </label>
+      <label class="live-toggle">
+        <input type="checkbox" id="sortByPosition" />
+        Sort by position
+      </label>
+      <label class="live-toggle" id="groupByTimeLabel" style="display:none">
+        <input type="checkbox" id="groupByTime" />
+        Group by game time
+      </label>
+    </div>
+    <nav id="leagueTabs"></nav>
+  </header>
+  <main id="content">
+    <p class="empty">Enter your Sleeper username above and hit Load.</p>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>

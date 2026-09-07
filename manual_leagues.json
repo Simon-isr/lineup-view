@@ -1,0 +1,27 @@
+{
+  "leagues": [
+    {
+      "league_id": "manual-quandri",
+      "name": "Quandri League",
+      "opponent_name": null,
+      "roster": [
+        {"sleeper_id": "3163", "slot": "QB", "points": 0, "projected": 16.65},
+        {"sleeper_id": "8150", "slot": "RB", "points": 0, "projected": 12.37},
+        {"sleeper_id": "12481", "slot": "RB", "points": 0, "projected": 12.33},
+        {"sleeper_id": "7564", "slot": "WR", "points": 0, "projected": 16.53},
+        {"sleeper_id": "8112", "slot": "WR", "points": 0, "projected": 13.26},
+        {"sleeper_id": "11635", "slot": "WR", "points": 0, "projected": 10.63},
+        {"sleeper_id": "9484", "slot": "TE", "points": 0, "projected": 8.75},
+        {"sleeper_id": "7567", "slot": "FLEX", "points": 0, "projected": 8.55},
+        {"sleeper_id": "DET", "slot": "DEF", "points": 0, "projected": null},
+        {"sleeper_id": "12015", "slot": "K", "points": 0, "projected": null},
+        {"sleeper_id": "11586", "slot": "BN", "points": 0, "projected": 8.30},
+        {"sleeper_id": "12501", "slot": "BN", "points": 0, "projected": 7.58},
+        {"sleeper_id": "10219", "slot": "BN", "points": 0, "projected": 6.64},
+        {"sleeper_id": "5872", "slot": "BN", "points": 0, "projected": 6.12},
+        {"sleeper_id": "13414", "slot": "BN", "points": 0, "projected": 2.74},
+        {"sleeper_id": "9753", "slot": "IR", "points": 0, "projected": null}
+      ]
+    }
+  ]
+}
