@@ -115,6 +115,10 @@ is ever opened up more broadly.
   Clicking a card jumps to `/` filtered to that league with "Active only"
   already on (`/?league=<id>&active=1` — read once on first load, then a
   plain reload/Load click goes back to "All leagues").
+- `/all-players` — a bookmarkable shortcut straight into "All players (tags)"
+  + "Group by game time" (redirects to `/?all=1&group=1`, the deep-link
+  params `app.js` already knows how to apply on first load — same mechanism
+  as the dashboard's card links above).
 
 ## Views (on `/`)
 

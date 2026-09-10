@@ -12,7 +12,7 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import board
@@ -55,6 +55,15 @@ def index():
 @app.get("/dashboard")
 def dashboard_page():
     return _render_page(STATIC_DIR / "dashboard.html")
+
+
+@app.get("/all-players")
+def all_players_shortcut():
+    """A memorable, typeable URL for a view that's otherwise two checkboxes
+    deep -- redirects to the same "All players" + "Group by game time" state
+    app.js already knows how to apply from ?all=1&group=1 (see its
+    deep-link comment)."""
+    return RedirectResponse(url="/?all=1&group=1")
 
 
 @app.get("/api/appearances")

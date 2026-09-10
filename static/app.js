@@ -4,12 +4,16 @@ const DEFAULT_USER = "SimonIsr";
 let DATA = null;          // last /api/appearances response
 let activeLeague = "all";  // "all" or a league_id
 
-// Deep-link support from the dashboard: /?league=<id>&active=1 preselects a
-// league tab and checks "Active only" on the first load only -- a plain
-// reload or re-Load click afterward goes back to "All leagues".
+// Deep-link support: /?league=<id>&active=1 (from the dashboard) preselects
+// a league tab and checks "Active only"; /?all=1&group=1 (or just visit
+// /all-players -- see server.py) checks "All players" and "Group by game
+// time" instead. Applied on the first load only -- a plain reload or
+// re-Load click afterward goes back to the plain default view.
 const _urlParams = new URLSearchParams(location.search);
 const _initialLeague = _urlParams.get("league");
 const _initialActive = _urlParams.get("active") === "1";
+const _initialAllPlayers = _urlParams.get("all") === "1";
+const _initialGroupByTime = _urlParams.get("group") === "1";
 let _initialApplied = false;
 
 function loadUser() {
@@ -50,6 +54,8 @@ async function fetchAndRender(trigger = "manual") {
       _initialApplied = true;
       if (_initialLeague && DATA.leagues.some(l => l.league_id === _initialLeague)) activeLeague = _initialLeague;
       if (_initialActive) $("#activeOnly").checked = true;
+      if (_initialAllPlayers) $("#allPlayers").checked = true;
+      if (_initialGroupByTime) $("#groupByTime").checked = true;
     } else {
       activeLeague = "all";
     }
