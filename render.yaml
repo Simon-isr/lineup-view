@@ -6,7 +6,5 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: APP_PASSWORD
-        sync: false
       - key: GA_MEASUREMENT_ID
         sync: false

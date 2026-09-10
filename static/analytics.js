@@ -10,15 +10,17 @@ function trackEvent(name, params) {
   }
 }
 
-// Label this visit with whatever username was typed into the Basic Auth
-// prompt (see server.py's BasicAuthMiddleware) -- not a verified identity,
-// just enough to tell "who's using this" apart in GA instead of anonymous
-// session IDs. No-ops locally (no APP_PASSWORD -> no Authorization header).
-fetch("/api/whoami")
-  .then((r) => (r.ok ? r.json() : null))
-  .then((data) => {
-    if (data && data.app_user && typeof gtag === "function") {
-      gtag("set", "user_properties", { app_user: data.app_user });
-    }
-  })
-  .catch(() => {});
+// The app has no login, so "who's using this" has to come from asking --
+// once, on whichever device/browser someone's on, then remembered locally.
+// Declining (Cancel, or closing the prompt) just leaves them anonymous in GA
+// and asks again next visit, rather than nagging with a value already known.
+function labelVisitor() {
+  if (typeof gtag !== "function") return; // no GA_MEASUREMENT_ID -> nothing to label
+  let name = localStorage.getItem("lineupview.visitor_name");
+  if (!name) {
+    name = (window.prompt("What's your name? (lets Simon see who's using this -- optional)") || "").trim();
+    if (name) localStorage.setItem("lineupview.visitor_name", name);
+  }
+  if (name) gtag("set", "user_properties", { app_user: name });
+}
+labelVisitor();

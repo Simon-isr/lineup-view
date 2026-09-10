@@ -26,20 +26,24 @@ repo under `github.com/Simon-isr` — a personal account with no Quandri org
 membership, deliberately kept separate from work.
 
 1. Render → New → Blueprint → point at the repo. `render.yaml` (committed)
-   defines the whole service — Render just asks you to fill in `APP_PASSWORD`
-   (kept out of git on purpose; set it in Render's dashboard, not the file).
-2. Open the `.onrender.com` URL Render gives you, log in once with any
-   username + that password (browser remembers it), "Add to Home Screen"
-   on your phone for an app-like icon.
+   defines the whole service — no manual config beyond, optionally,
+   `GA_MEASUREMENT_ID` (see "Analytics" below).
+2. Open the `.onrender.com` URL Render gives you — no login, "Add to Home
+   Screen" on your phone for an app-like icon.
+
+**No password.** Used to gate the whole app behind HTTP Basic Auth
+(`APP_PASSWORD`), removed once the app was meant for other people to
+actually use — a shared login was friction, not security (anyone with the
+URL only needed to make up a username anyway), and it also broke GA's own
+tag-verification tool and any crawler, since they hit the 401 before ever
+seeing the page. See "Analytics" below for how "who's using this" works
+without it.
 
 **Free-tier trade-offs, so they don't look like bugs later:**
 - **Sleeps after ~15 min idle.** First request after a gap takes 30-60s to
   wake back up; normal after that.
 - **Ephemeral disk.** `.cache/` resets on every redeploy/restart — harmless,
   it's just `sleeper.py`/`espn.py`'s perf cache, rebuilt on the next request.
-- **One shared password, not real accounts.** See `server.py`'s
-  `BasicAuthMiddleware` — HTTP Basic Auth, active only when `APP_PASSWORD`
-  is set, so local dev (no env var) stays exactly as open as before.
 
 ## Analytics
 
@@ -50,13 +54,14 @@ so it's visible whether anyone's actually using this beyond Simon.
 1. Create a free GA4 property at [analytics.google.com](https://analytics.google.com)
    → Admin → Data Streams → add a Web stream → copy the **Measurement ID**
    (`G-XXXXXXXXXX`).
-2. Set `GA_MEASUREMENT_ID` in Render's dashboard (same pattern as
-   `APP_PASSWORD` — kept out of git). Unset it and the pages load with no
-   analytics script at all; nothing else changes.
-3. GA's real-time report will show `app_user` as a user property on each
-   visit — that's whatever username was typed into the Basic Auth prompt
-   (see "One shared password" above), not a verified identity, just enough
-   to tell people apart. `static/analytics.js` reads it from `/api/whoami`.
+2. Set `GA_MEASUREMENT_ID` in Render's dashboard (kept out of git). Unset it
+   and the pages load with no analytics script at all; nothing else changes.
+3. Since there's no login to read a name from, `static/analytics.js` asks
+   once per browser ("What's your name?"), stores the answer in
+   `localStorage`, and sends it to GA as the `app_user` user property on
+   every later visit from that browser/device. Declining leaves that visit
+   anonymous in GA and asks again next time, rather than repeating a name
+   it already has.
 
 Privacy note: this sends visit + click data (not fantasy team data) to
 Google. Fine for a tool shared with a few leaguemates; worth knowing if this
@@ -83,13 +88,12 @@ is ever opened up more broadly.
   "playing now" view are just filters over that same list (see the
   module docstring for why one shape, not two code paths).
 - `server.py` — FastAPI, one endpoint (`/api/appearances`) + static files,
-  plus `BasicAuthMiddleware` gating the whole app when `APP_PASSWORD` is set
-  (see "Hosting it" above), `/api/whoami`, and injecting the GA snippet into
-  `index.html`/`dashboard.html` when `GA_MEASUREMENT_ID` is set (see
-  "Analytics" above).
+  plus injecting the GA snippet into `index.html`/`dashboard.html` when
+  `GA_MEASUREMENT_ID` is set (see "Analytics" above). No auth — see "No
+  password" under "Hosting it".
 - `render.yaml` — the hosted deploy's service definition, committed so
-  Render's Blueprint flow needs zero manual dashboard config beyond the
-  password (and, optionally, the GA measurement ID) itself.
+  Render's Blueprint flow needs zero manual dashboard config beyond,
+  optionally, the GA measurement ID.
 - `static/` — vanilla HTML/JS/CSS, no build step. Deliberately dependency-free
   so it's trivial to drop into a WKWebView / Capacitor shell for an iOS
   wrapper later without a rewrite — see "Path to iOS" below.
