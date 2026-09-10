@@ -118,6 +118,22 @@ is ever opened up more broadly.
   + "Group by game time" (redirects to `/?all=1&group=1`, the deep-link
   params `app.js` already knows how to apply on first load — same mechanism
   as the dashboard's card links above).
+- `/start-sit` — per-league start/sit advice: one card per league, current
+  lineup slot vs. recommended slot, plus a notes list. Two separate
+  recommendations, computed server-side by `lineup.py`:
+  - **Who should be active** — the best-projected legal lineup (accounting
+    for injury status and byes), diffed against your actual current Sleeper
+    starters ("Start X", "Sit Y" notes).
+  - **Which slot a flex-eligible starter should occupy** — reassigning slots
+    among an already-decided starter set never changes total points (Sleeper
+    scores by is_starter, not by slot), so this is a pure optionality call:
+    whoever among a group of interchangeable starters (e.g. 3 RBs across 2 RB
+    slots + 1 FLEX) plays *last* gets the more flexible slot, so the latest
+    possible decision is made with the most information ("Move Z from RB to
+    FLEX — plays last, keeps the most optionality if news breaks late"). A
+    slot whose current occupant's game has already kicked off is marked
+    locked and never touched — Sleeper wouldn't let it change anyway. Pinned
+    by `tests/test_lineup.py`.
 
 ## Views (on `/`)
 
@@ -186,7 +202,10 @@ holds a hand-maintained roster instead. Currently: **Quandri League** (ESPN).
   duplicate of himself. `slot` of `BN`/`IR` means bench; anything else counts
   as a starter. `opponent_name: null` means the opponent's roster isn't
   tracked — the by-league card shows "vs Opponent" with an empty column
-  rather than a real matchup.
+  rather than a real matchup. Each player's `slot` doubles as this league's
+  `roster_positions` for `/start-sit` — one entry per rostered player, in
+  slot order, exactly matching Sleeper's own schema, so no separate config
+  is needed just because the league itself isn't on Sleeper.
 - **No opponent roster.** Only your own side is tracked; add an
   `opponent_name` (and, if you ever want it, a mirrored roster with
   `"side": "theirs"` support in `board.py`) if that becomes worth it.
@@ -222,6 +241,19 @@ holds a hand-maintained roster instead. Currently: **Quandri League** (ESPN).
   (0 → std, 0.5 → half-PPR, 1.0 → full PPR). A league with other custom
   scoring (bonuses, TE premium, etc.) gets the closest of Sleeper's three
   variants, not an exact replica of its own settings.
+- **`/start-sit`'s "current slot" relies on Sleeper's matchup `starters` array
+  being ordered to match `roster_positions` with bench slots dropped** (i.e.
+  `starters[i]` occupies the i-th non-bench entry of `roster_positions`) —
+  undocumented, but empirically verified against every league + week cached
+  in `.cache/` when this was built (2026-09-10). If a league's slot order
+  ever looks wrong on `/start-sit`, this is the assumption to re-check first.
+- **The flex-slot recommendation is a greedy fill (most-restrictive slot
+  first), not an exhaustive optimizer.** Provably correct for the "nested"
+  flex families every current league actually has (a dedicated position's
+  eligible set is always a subset of FLEX's, which is a subset of
+  SUPER_FLEX's) — not guaranteed optimal for a league mixing two *non-nested*
+  2-way flexes (e.g. `WRRB_FLEX` and `REC_FLEX` in the same lineup), which
+  none of Simon's leagues have today.
 - **Two schedule sources, on purpose.** Live/final status (`board.is_live()`,
   pinned by `tests/test_live_filter.py`) comes from `sleeper.py`'s schedule —
   the same feed that updates `players_points`, so its status is most likely

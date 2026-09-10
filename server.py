@@ -57,6 +57,11 @@ def dashboard_page():
     return _render_page(STATIC_DIR / "dashboard.html")
 
 
+@app.get("/start-sit")
+def start_sit_page():
+    return _render_page(STATIC_DIR / "start-sit.html")
+
+
 @app.get("/all-players")
 def all_players_shortcut():
     """A memorable, typeable URL for a view that's otherwise two checkboxes

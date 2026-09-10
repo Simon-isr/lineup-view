@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import espn
+import lineup
 import sleeper
 
 NOT_LIVE_STATUSES = {"pre_game", "complete", "final", "postponed", "canceled", "cancelled"}
@@ -59,12 +60,23 @@ def _player_info(player_id: str, players: dict) -> dict:
     p = players.get(player_id)
     if p:
         name = p.get("full_name") or f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
-        return {"name": name or player_id, "pos": p.get("position") or "?", "team": p.get("team")}
+        return {
+            "name": name or player_id,
+            "pos": p.get("position") or "?",
+            "team": p.get("team"),
+            # Sleeper's own multi-eligibility list (e.g. a player who also
+            # qualifies at another position) -- lineup.py's slot-eligibility
+            # check needs this, not just `pos`, or a multi-eligible player
+            # gets wrongly excluded from a flex slot he can legally fill.
+            "fantasy_positions": p.get("fantasy_positions") or [],
+            "injury_status": p.get("injury_status"),
+        }
     # Team defenses are keyed by team code directly in some dumps; others aren't
     # present at all. Synthesize rather than show a bare code.
     if player_id.isalpha() and player_id.isupper() and len(player_id) <= 3:
-        return {"name": f"{player_id} D/ST", "pos": "DEF", "team": player_id}
-    return {"name": player_id, "pos": "?", "team": None}
+        return {"name": f"{player_id} D/ST", "pos": "DEF", "team": player_id,
+                "fantasy_positions": ["DEF"], "injury_status": None}
+    return {"name": player_id, "pos": "?", "team": None, "fantasy_positions": [], "injury_status": None}
 
 
 def _team_game_status(team: Optional[str], schedule_by_team: dict) -> Optional[str]:
@@ -228,8 +240,9 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
         proj_key = _projection_key(league_settings)
 
         def _rows(row, side, this_owner, other_owner):
+            out = []
             if row is None:
-                return
+                return out
             starters = set(s for s in (row.get("starters") or []) if s and s != "0")
             points_by_id = row.get("players_points") or {}
             for pid in row.get("players") or []:
@@ -237,7 +250,7 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
                 game_status = _team_game_status(info["team"], schedule_by_team)
                 actual = points_by_id.get(pid, 0.0)
                 proj_val = (proj_by_id.get(pid) or {}).get(proj_key) or 0.0
-                appearances.append({
+                appearance = {
                     "league_id": league_id,
                     "league_name": league_name,
                     "side": side,
@@ -247,21 +260,43 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
                     "name": info["name"],
                     "pos": info["pos"],
                     "team": info["team"],
+                    "fantasy_positions": info["fantasy_positions"],
+                    "injury_status": info["injury_status"],
                     "is_starter": pid in starters,
                     "points": actual,
                     "projected": round(_blend_points(actual, game_status, proj_val), 2),
                     "game_status": game_status,
                     "is_live": is_live(game_status),
                     "kickoff": kickoff_by_team.get(info["team"]),
-                })
+                }
+                appearances.append(appearance)
+                out.append(appearance)
+            return out
 
-        _rows(my_row, "mine", my_owner, opp_owner)
+        mine_rows = _rows(my_row, "mine", my_owner, opp_owner)
         _rows(opp_row, "theirs", opp_owner, my_owner)
 
         entry["my_owner"] = my_owner
         entry["opp_owner"] = opp_owner
         entry["my"] = _team_summary(my_row, players, schedule_by_team, proj_by_id, proj_key)
         entry["opp"] = _team_summary(opp_row, players, schedule_by_team, proj_by_id, proj_key)
+
+        # Start/sit recommendation -- see lineup.py. Needs the league's slot
+        # structure (roster_positions) and which appearance currently sits in
+        # each non-bench slot; the latter relies on Sleeper's `starters` array
+        # being ordered to match roster_positions minus bench slots
+        # (empirically verified against every league in .cache/, see
+        # tests/test_lineup.py).
+        roster_positions = league_settings.get("roster_positions") or []
+        starting_slots = [s for s in roster_positions if s not in lineup.BENCH_LIKE]
+        if roster_positions and mine_rows and my_row is not None:
+            by_id = {a["player_id"]: a for a in mine_rows}
+            raw_starters = my_row.get("starters") or []
+            current_by_slot = [
+                by_id.get(raw_starters[i]) if i < len(raw_starters) and raw_starters[i] not in (None, "0") else None
+                for i in range(len(starting_slots))
+            ]
+            entry["lineup_recommendation"] = lineup.recommend_lineup(mine_rows, roster_positions, current_by_slot)
 
     manual_leagues = _load_manual_leagues() if (user["username"] or "").lower() == MANUAL_LEAGUES_OWNER else []
     for lg in manual_leagues:
@@ -273,6 +308,7 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
                              "my_owner": my_owner, "opp_owner": opp_owner})
 
         starters_points = starters_proj = 0.0
+        manual_rows = []
         for p in lg.get("roster", []):
             pid = p.get("sleeper_id") or f"manual:{league_id}:{p.get('name')}"
             # A known sleeper_id gets name/pos/team the same way every other
@@ -280,13 +316,14 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
             # right cross-league tag row in the "All players" view instead of
             # showing up as an unrelated duplicate.
             info = _player_info(pid, players) if p.get("sleeper_id") else {
-                "name": p.get("name", pid), "pos": p.get("pos", "?"), "team": p.get("team")}
+                "name": p.get("name", pid), "pos": p.get("pos", "?"), "team": p.get("team"),
+                "fantasy_positions": [p.get("pos", "?")], "injury_status": None}
             game_status = _team_game_status(info["team"], schedule_by_team)
             is_starter = p.get("slot") not in BENCH_SLOTS
             points = p.get("points") or 0.0
             projected = p.get("projected")
             projected = points if projected is None else projected
-            appearances.append({
+            appearance = {
                 "league_id": league_id,
                 "league_name": league_name,
                 "side": "mine",
@@ -296,13 +333,17 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
                 "name": info["name"],
                 "pos": info["pos"],
                 "team": info["team"],
+                "fantasy_positions": info["fantasy_positions"],
+                "injury_status": info["injury_status"],
                 "is_starter": is_starter,
                 "points": points,
                 "projected": round(projected, 2),
                 "game_status": game_status,
                 "is_live": is_live(game_status),
                 "kickoff": kickoff_by_team.get(info["team"]) if info["team"] else None,
-            })
+            }
+            appearances.append(appearance)
+            manual_rows.append(appearance)
             if is_starter:
                 starters_points += points
                 starters_proj += projected
@@ -311,6 +352,17 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
         entry["my"] = {"score": round(starters_points, 2), "projected": round(starters_proj, 2),
                         "yet_to_play": [], "yet_to_play_count": 0}
         entry["opp"] = None  # no opponent roster tracked -- see opp_owner above
+
+        # Start/sit recommendation -- manual_leagues.json's per-player "slot"
+        # field IS this league's roster_positions/current-slot info (one
+        # entry per rostered player, in slot order), so no separate schema
+        # is needed the way a real Sleeper league needs `starters` zipped
+        # against roster_positions. See lineup.py.
+        roster_positions = [p.get("slot") for p in lg.get("roster", [])]
+        current_by_slot = [row for row, p in zip(manual_rows, lg.get("roster", []))
+                            if p.get("slot") not in lineup.BENCH_LIKE]
+        if roster_positions:
+            entry["lineup_recommendation"] = lineup.recommend_lineup(manual_rows, roster_positions, current_by_slot)
 
     return {
         "user": user,

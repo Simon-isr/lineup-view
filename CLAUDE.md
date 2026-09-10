@@ -100,13 +100,13 @@ access.
 
 ```
 Sleeper API (rosters, matchups, projections, schedule)  ─┐
-ESPN scoreboard API (kickoff times only)                 ├─→ board.py (build_appearances)
+ESPN scoreboard API (kickoff times only)                 ├─→ board.py (build_appearances) ──→ lineup.py (recommend_lineup, per league)
 manual_leagues.json (Simon's ESPN league, gated)         ─┘         │
                                                                      ▼
                                           server.py (/api/appearances, JSON)
                                                                      │
                                                                      ▼
-                                    static/app.js + dashboard.js (fetch, filter, render)
+                            static/app.js + dashboard.js + start-sit.js (fetch, filter, render)
                                                                      │
                                                                      ▼
                                             static/analytics.js → GA4 (gtag)
@@ -120,12 +120,14 @@ manual_leagues.json (Simon's ESPN league, gated)         ─┘         │
 |------|-------------|
 | `server.py` | FastAPI app: `/api/appearances`, GA snippet injection, `/all-players` redirect. No auth. |
 | `board.py` | Core logic — resolves Sleeper id, discovers leagues, flattens rosters into one `appearances` list. |
+| `lineup.py` | Start/sit recommendation engine — best-lineup + flex-slot-by-kickoff logic, called from `board.py`, surfaced on `/start-sit`. |
 | `sleeper.py` / `espn.py` | Vendored API clients (rosters/scoring vs. kickoff time). |
 | `manual_leagues.json` | Simon's hand-maintained ESPN roster (gated to `SimonIsr`, see above). |
 | `render.yaml` | Render Blueprint service definition — committed, drives the whole deploy. |
-| `static/analytics.js` | `trackEvent()` + `identifyVisitor()` — shared GA helpers for `app.js`/`dashboard.js`. |
+| `static/analytics.js` | `trackEvent()` + `identifyVisitor()` — shared GA helpers for `app.js`/`dashboard.js`/`start-sit.js`. |
 | `static/app.js` | `/` page — matchups, live view, all-players/tags view, deep-link handling. |
 | `static/dashboard.js` | `/dashboard` page — point-in-time score/projection cards. |
+| `static/start-sit.js` | `/start-sit` page — per-league current-vs-recommended lineup table + notes. |
 
 ---
 
@@ -177,6 +179,7 @@ README's "Manual leagues" section for the exact format.
 | 2026-09-09 | Removed `APP_PASSWORD`/`BasicAuthMiddleware` entirely | It wasn't real security (anyone could type any username to pass it), it was blocking Simon's own phone (cached creds masked this) and GA's tag-verification crawler (401 before ever seeing the page), and Simon wants people actually using this |
 | 2026-09-09 | Added `/all-players` → redirects to `/?all=1&group=1` | Bookmarkable/typeable shortcut into the "All players (tags)" + "Group by game time" view, reusing the existing `?league=&active=1` deep-link pattern |
 | 2026-09-09 | Replaced the one-time "what's your name?" `window.prompt()` for GA identity with `identifyVisitor()`, fed the Sleeper username typed into Load | Simon didn't want a prompt at all — "who" should just be whatever Sleeper username someone's looking up, tracked silently |
+| 2026-09-10 | Added `/start-sit` (new `lineup.py` module + page), embedded as `lg.lineup_recommendation` on the existing `/api/appearances` response rather than a new endpoint | Simon wanted per-league start/sit advice, specifically: among flex-eligible starters, whoever plays *last* should sit in the flex slot (not a dedicated position slot) for max last-second optionality. Reuses the dashboard's own "no second endpoint" precedent. |
 
 ---
 
