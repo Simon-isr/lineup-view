@@ -20,6 +20,12 @@ COMPLETE_STATUSES = {"complete", "final"}
 MANUAL_LEAGUES_PATH = Path(__file__).resolve().parent / "manual_leagues.json"
 BENCH_SLOTS = {"BN", "IR"}
 
+# manual_leagues.json is Simon's own hand-maintained ESPN roster -- anyone
+# else using the app (it's a shared, unauthenticated-by-username tool once
+# hosted) should never see it show up in their leagues. Gate it to just his
+# Sleeper username rather than dropping it in for every viewer.
+MANUAL_LEAGUES_OWNER = "simonisr"
+
 
 def _load_manual_leagues() -> list:
     """Leagues tracked by hand instead of through a live API -- built for a
@@ -257,7 +263,8 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
         entry["my"] = _team_summary(my_row, players, schedule_by_team, proj_by_id, proj_key)
         entry["opp"] = _team_summary(opp_row, players, schedule_by_team, proj_by_id, proj_key)
 
-    for lg in _load_manual_leagues():
+    manual_leagues = _load_manual_leagues() if (user["username"] or "").lower() == MANUAL_LEAGUES_OWNER else []
+    for lg in manual_leagues:
         league_id = lg["league_id"]
         league_name = lg["name"]
         my_owner = user["username"]
