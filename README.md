@@ -41,6 +41,27 @@ membership, deliberately kept separate from work.
   `BasicAuthMiddleware` — HTTP Basic Auth, active only when `APP_PASSWORD`
   is set, so local dev (no env var) stays exactly as open as before.
 
+## Analytics
+
+Optional Google Analytics (GA4) — page views, time on site, and a handful of
+click events (Load button, league tabs, each filter toggle, dashboard cards),
+so it's visible whether anyone's actually using this beyond Simon.
+
+1. Create a free GA4 property at [analytics.google.com](https://analytics.google.com)
+   → Admin → Data Streams → add a Web stream → copy the **Measurement ID**
+   (`G-XXXXXXXXXX`).
+2. Set `GA_MEASUREMENT_ID` in Render's dashboard (same pattern as
+   `APP_PASSWORD` — kept out of git). Unset it and the pages load with no
+   analytics script at all; nothing else changes.
+3. GA's real-time report will show `app_user` as a user property on each
+   visit — that's whatever username was typed into the Basic Auth prompt
+   (see "One shared password" above), not a verified identity, just enough
+   to tell people apart. `static/analytics.js` reads it from `/api/whoami`.
+
+Privacy note: this sends visit + click data (not fantasy team data) to
+Google. Fine for a tool shared with a few leaguemates; worth knowing if this
+is ever opened up more broadly.
+
 ## How it works
 
 - `sleeper.py` — vendored, minimal Sleeper API client (own cache under
@@ -63,13 +84,17 @@ membership, deliberately kept separate from work.
   module docstring for why one shape, not two code paths).
 - `server.py` — FastAPI, one endpoint (`/api/appearances`) + static files,
   plus `BasicAuthMiddleware` gating the whole app when `APP_PASSWORD` is set
-  (see "Hosting it" above).
+  (see "Hosting it" above), `/api/whoami`, and injecting the GA snippet into
+  `index.html`/`dashboard.html` when `GA_MEASUREMENT_ID` is set (see
+  "Analytics" above).
 - `render.yaml` — the hosted deploy's service definition, committed so
   Render's Blueprint flow needs zero manual dashboard config beyond the
-  password itself.
+  password (and, optionally, the GA measurement ID) itself.
 - `static/` — vanilla HTML/JS/CSS, no build step. Deliberately dependency-free
   so it's trivial to drop into a WKWebView / Capacitor shell for an iOS
   wrapper later without a rewrite — see "Path to iOS" below.
+  `analytics.js` is the one exception worth calling out: a thin `gtag()`
+  wrapper shared by `app.js`/`dashboard.js` (see "Analytics" above).
 
 ## Pages
 

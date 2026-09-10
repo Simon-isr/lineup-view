@@ -13,8 +13,8 @@ import os
 import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, Response
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -28,8 +28,13 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 # prompt, so there's no login page to build and it works identically on
 # desktop and mobile. Only active when APP_PASSWORD is set -- local dev
 # stays exactly as open as before, no env var to remember day to day.
-# Username is ignored; only the password is checked.
 APP_PASSWORD = os.environ.get("APP_PASSWORD")
+
+# Optional GA4 property to send analytics to (page views, time on site, and
+# the click events static/analytics.js + app.js/dashboard.js fire). Unset in
+# local dev -- _ga_snippet() returns "" and the pages load with no analytics
+# script at all, so there's nothing to configure to keep working locally.
+GA_MEASUREMENT_ID = os.environ.get("GA_MEASUREMENT_ID")
 
 
 class BasicAuthMiddleware(BaseHTTPMiddleware):
@@ -39,10 +44,15 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         auth = request.headers.get("authorization", "")
         if auth.startswith("Basic "):
             try:
-                _, _, password = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
+                username, _, password = base64.b64decode(auth[6:]).decode("utf-8").partition(":")
             except Exception:
-                password = ""
+                username, password = "", ""
             if secrets.compare_digest(password, APP_PASSWORD):
+                # The password is what's actually checked -- username is a
+                # free-text label whoever's logging in chooses. Stash it so
+                # /api/whoami (and therefore GA, via analytics.js) can show
+                # who's using the app instead of an anonymous session.
+                request.state.app_user = username or None
                 return await call_next(request)
         return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="Lineup View"'})
 
@@ -51,14 +61,42 @@ app = FastAPI(title="Lineup View")
 app.add_middleware(BasicAuthMiddleware)
 
 
+def _ga_snippet() -> str:
+    if not GA_MEASUREMENT_ID:
+        return ""
+    return (
+        f'<script async src="https://www.googletagmanager.com/gtag/js?id={GA_MEASUREMENT_ID}"></script>\n'
+        "<script>\n"
+        "  window.dataLayer = window.dataLayer || [];\n"
+        "  function gtag(){ dataLayer.push(arguments); }\n"
+        "  gtag('js', new Date());\n"
+        f"  gtag('config', '{GA_MEASUREMENT_ID}');\n"
+        "</script>"
+    )
+
+
+def _render_page(path: Path) -> HTMLResponse:
+    html = path.read_text(encoding="utf-8").replace("<!--GA_SNIPPET-->", _ga_snippet())
+    return HTMLResponse(html)
+
+
 @app.get("/")
 def index():
-    return FileResponse(STATIC_DIR / "index.html")
+    return _render_page(STATIC_DIR / "index.html")
 
 
 @app.get("/dashboard")
 def dashboard_page():
-    return FileResponse(STATIC_DIR / "dashboard.html")
+    return _render_page(STATIC_DIR / "dashboard.html")
+
+
+@app.get("/api/whoami")
+def whoami(request: Request):
+    """The Basic Auth username for this request, if any -- read by
+    analytics.js so GA can label a visit with a real name instead of an
+    anonymous session. Not an authentication check (see BasicAuthMiddleware);
+    just exposing what it already parsed."""
+    return {"app_user": getattr(request.state, "app_user", None)}
 
 
 @app.get("/api/appearances")

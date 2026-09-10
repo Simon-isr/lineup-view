@@ -17,19 +17,26 @@ function loadUser() {
 }
 loadUser();
 
-$("#load").addEventListener("click", fetchAndRender);
-$("#user").addEventListener("keydown", (e) => { if (e.key === "Enter") fetchAndRender(); });
-$("#liveOnly").addEventListener("change", render);
-$("#activeOnly").addEventListener("change", render);
-$("#allPlayers").addEventListener("change", render);
-$("#sortByPosition").addEventListener("change", render);
-$("#groupByTime").addEventListener("change", render);
+$("#load").addEventListener("click", () => fetchAndRender("button"));
+$("#user").addEventListener("keydown", (e) => { if (e.key === "Enter") fetchAndRender("enter"); });
 
-fetchAndRender(); // auto-load on open now that there's always a default user
+// Each toggle fires its own named event (rather than one generic "filter
+// changed") so a GA report can tell which toggles people actually use.
+function trackToggle(id) {
+  return () => { trackEvent(`toggle_${id}`, { checked: $(`#${id}`).checked }); render(); };
+}
+$("#liveOnly").addEventListener("change", trackToggle("liveOnly"));
+$("#activeOnly").addEventListener("change", trackToggle("activeOnly"));
+$("#allPlayers").addEventListener("change", trackToggle("allPlayers"));
+$("#sortByPosition").addEventListener("change", trackToggle("sortByPosition"));
+$("#groupByTime").addEventListener("change", trackToggle("groupByTime"));
 
-async function fetchAndRender() {
+fetchAndRender("auto"); // auto-load on open now that there's always a default user
+
+async function fetchAndRender(trigger = "manual") {
   const user = $("#user").value.trim();
   if (!user) return;
+  trackEvent("load_lineup", { trigger, sleeper_user: user });
   localStorage.setItem("lineupview.user", user);
   $("#content").innerHTML = `<p class="empty">Loading&hellip;</p>`;
   try {
@@ -60,7 +67,12 @@ function renderTabs() {
     const b = document.createElement("button");
     b.textContent = label;
     b.className = id === activeLeague ? "active" : "";
-    b.addEventListener("click", () => { activeLeague = id; renderTabs(); render(); });
+    b.addEventListener("click", () => {
+      trackEvent("league_tab_click", { league_id: id, league_name: label });
+      activeLeague = id;
+      renderTabs();
+      render();
+    });
     nav.appendChild(b);
   };
   mk("all", "All leagues");

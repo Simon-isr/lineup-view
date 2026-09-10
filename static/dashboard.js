@@ -7,14 +7,22 @@ const DEFAULT_USER = "SimonIsr";
 
 $("#user").value = localStorage.getItem("lineupview.user") || DEFAULT_USER;
 
-$("#load").addEventListener("click", fetchAndRender);
-$("#user").addEventListener("keydown", (e) => { if (e.key === "Enter") fetchAndRender(); });
+$("#load").addEventListener("click", () => fetchAndRender("button"));
+$("#user").addEventListener("keydown", (e) => { if (e.key === "Enter") fetchAndRender("enter"); });
 
-fetchAndRender(); // auto-load on open now that there's always a default user
+// Cards are recreated on every render(), so delegate from the container
+// instead of re-attaching a listener per card.
+$("#content").addEventListener("click", (e) => {
+  const card = e.target.closest(".dash-card");
+  if (card) trackEvent("dashboard_card_click", { league_name: card.querySelector("h2")?.textContent || "" });
+});
 
-async function fetchAndRender() {
+fetchAndRender("auto"); // auto-load on open now that there's always a default user
+
+async function fetchAndRender(trigger = "manual") {
   const user = $("#user").value.trim();
   if (!user) return;
+  trackEvent("load_dashboard", { trigger, sleeper_user: user });
   localStorage.setItem("lineupview.user", user);
   $("#content").innerHTML = `<p class="empty">Loading&hellip;</p>`;
   try {
