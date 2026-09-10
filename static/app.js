@@ -41,6 +41,7 @@ async function fetchAndRender(trigger = "manual") {
   const user = $("#user").value.trim();
   if (!user) return;
   trackEvent("load_lineup", { trigger, sleeper_user: user });
+  identifyVisitor(user);
   localStorage.setItem("lineupview.user", user);
   $("#content").innerHTML = `<p class="empty">Loading&hellip;</p>`;
   try {

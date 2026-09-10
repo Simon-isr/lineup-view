@@ -56,12 +56,11 @@ so it's visible whether anyone's actually using this beyond Simon.
    (`G-XXXXXXXXXX`).
 2. Set `GA_MEASUREMENT_ID` in Render's dashboard (kept out of git). Unset it
    and the pages load with no analytics script at all; nothing else changes.
-3. Since there's no login to read a name from, `static/analytics.js` asks
-   once per browser ("What's your name?"), stores the answer in
-   `localStorage`, and sends it to GA as the `app_user` user property on
-   every later visit from that browser/device. Declining leaves that visit
-   anonymous in GA and asks again next time, rather than repeating a name
-   it already has.
+3. "Who's using this" = whichever Sleeper username someone types in and
+   loads (`identifyVisitor()` in `static/analytics.js`, called from
+   `app.js`/`dashboard.js`'s `fetchAndRender`) — sent to GA as the `app_user`
+   user property, labeling every event in that session, not just the load
+   itself.
 
 Privacy note: this sends visit + click data (not fantasy team data) to
 Google. Fine for a tool shared with a few leaguemates; worth knowing if this

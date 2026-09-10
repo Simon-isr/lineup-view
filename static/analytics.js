@@ -10,17 +10,16 @@ function trackEvent(name, params) {
   }
 }
 
-// The app has no login, so "who's using this" has to come from asking --
-// once, on whichever device/browser someone's on, then remembered locally.
-// Declining (Cancel, or closing the prompt) just leaves them anonymous in GA
-// and asks again next visit, rather than nagging with a value already known.
-function labelVisitor() {
-  if (typeof gtag !== "function") return; // no GA_MEASUREMENT_ID -> nothing to label
-  let name = localStorage.getItem("lineupview.visitor_name");
-  if (!name) {
-    name = (window.prompt("What's your name? (lets Simon see who's using this -- optional)") || "").trim();
-    if (name) localStorage.setItem("lineupview.visitor_name", name);
+// The app has no login, so "who's using this" is just whichever Sleeper
+// username someone typed in and loaded -- called from app.js/dashboard.js's
+// fetchAndRender on every successful load, so it labels the whole session
+// (all events, not just that one load) in GA.
+function identifyVisitor(sleeperUsername) {
+  try {
+    if (typeof gtag === "function" && sleeperUsername) {
+      gtag("set", "user_properties", { app_user: sleeperUsername });
+    }
+  } catch (e) {
+    // analytics should never break the app
   }
-  if (name) gtag("set", "user_properties", { app_user: name });
 }
-labelVisitor();
