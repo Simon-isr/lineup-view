@@ -147,18 +147,25 @@ def resolve_user(username_or_id: str) -> dict:
     return {"user_id": u["user_id"], "username": u.get("username") or u.get("display_name")}
 
 
-def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
+def build_appearances(username_or_id: str, week: Optional[int] = None, force: bool = False) -> dict:
+    """force=True bypasses sleeper.py's short-TTL caches (rosters, matchups,
+    schedule, state) instead of waiting them out -- for the /start-sit
+    Refresh button, where "pull live data" should mean live, not
+    "whatever's still under 30s old". Left False for a normal page load: the
+    caches are already short enough that nothing here is meaningfully stale,
+    and forcing on every load would turn a free page view into a guaranteed
+    round trip to Sleeper for no benefit."""
     user = resolve_user(username_or_id)
     user_id = user["user_id"]
 
-    state = sleeper.get_state_nfl()
+    state = sleeper.get_state_nfl(force=force)
     season = state["season"]
     season_type = state.get("season_type", "regular")
     current_week = state["week"]
     week = week or current_week or 1
     is_past_week = week < current_week
 
-    schedule = sleeper.get_schedule(season, season_type)
+    schedule = sleeper.get_schedule(season, season_type, force=force)
     schedule_by_team = {}
     for g in schedule:
         if g.get("week") != week:
@@ -200,7 +207,7 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
             entry["note"] = "not rosterable yet (pre-draft/drafting)"
             continue
 
-        rosters = sleeper.get_rosters(league_id)
+        rosters = sleeper.get_rosters(league_id, force=force)
         users = sleeper.get_league_users(league_id)
         owner_name = {
             u["user_id"]: (u.get("metadata") or {}).get("team_name") or u.get("display_name") or u["user_id"]
@@ -217,7 +224,7 @@ def build_appearances(username_or_id: str, week: Optional[int] = None) -> dict:
             continue
 
         try:
-            matchups = sleeper.get_matchups(league_id, week, is_past_week)
+            matchups = sleeper.get_matchups(league_id, week, is_past_week, force=force)
         except Exception as e:
             entry["note"] = f"matchups unavailable: {e}"
             continue

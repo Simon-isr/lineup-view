@@ -9,26 +9,37 @@ const DEFAULT_USER = "SimonIsr";
 $("#user").value = localStorage.getItem("lineupview.user") || DEFAULT_USER;
 
 $("#load").addEventListener("click", () => fetchAndRender("button"));
+$("#refresh").addEventListener("click", () => fetchAndRender("refresh_button", true));
 $("#user").addEventListener("keydown", (e) => { if (e.key === "Enter") fetchAndRender("enter"); });
 
 fetchAndRender("auto"); // auto-load on open now that there's always a default user
 
-async function fetchAndRender(trigger = "manual") {
+async function fetchAndRender(trigger = "manual", fresh = false) {
   const user = $("#user").value.trim();
   if (!user) return;
-  trackEvent("load_start_sit", { trigger, sleeper_user: user });
+  trackEvent(fresh ? "refresh_start_sit" : "load_start_sit", { trigger, sleeper_user: user });
   identifyVisitor(user);
   localStorage.setItem("lineupview.user", user);
-  $("#content").innerHTML = `<p class="empty">Loading&hellip;</p>`;
+  const refreshBtn = $("#refresh");
+  const wasFirstLoad = !refreshBtn.dataset.loaded;
+  if (wasFirstLoad) $("#content").innerHTML = `<p class="empty">Loading&hellip;</p>`;
+  refreshBtn.disabled = true;
+  refreshBtn.textContent = fresh ? "Refreshing…" : "↻ Refresh";
   try {
-    const res = await fetch(`/api/appearances?user=${encodeURIComponent(user)}`);
+    const url = `/api/appearances?user=${encodeURIComponent(user)}${fresh ? "&fresh=1" : ""}`;
+    const res = await fetch(url);
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.detail || res.statusText);
     }
     render(await res.json());
+    refreshBtn.dataset.loaded = "1";
+    $("#lastUpdated").textContent = `Updated ${new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
   } catch (err) {
     $("#content").innerHTML = `<p class="empty">Error: ${escapeHtml(err.message)}</p>`;
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = "↻ Refresh";
   }
 }
 

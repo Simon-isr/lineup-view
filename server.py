@@ -73,9 +73,10 @@ def all_players_shortcut():
 
 @app.get("/api/appearances")
 def appearances(user: str = Query(..., description="Sleeper username or user_id"),
-                 week: int = Query(None, ge=1, le=18)):
+                 week: int = Query(None, ge=1, le=18),
+                 fresh: bool = Query(False, description="bypass Sleeper's short-TTL caches")):
     try:
-        return board.build_appearances(user, week)
+        return board.build_appearances(user, week, force=fresh)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:

@@ -47,9 +47,9 @@ def _immutable(name: str, url: str, params=None):
     return data
 
 
-def _current(name: str, url: str, params=None, max_age_seconds: float = 3600):
+def _current(name: str, url: str, params=None, max_age_seconds: float = 3600, force: bool = False):
     path = _cache_path(name)
-    if path.exists():
+    if path.exists() and not force:
         age = time.time() - path.stat().st_mtime
         if age < max_age_seconds:
             return json.loads(path.read_text(encoding="utf-8"))
@@ -75,8 +75,8 @@ def get_user_leagues(user_id: str, season: str) -> list:
                      f"{BASE_V1}/user/{user_id}/leagues/nfl/{season}", max_age_seconds=300)
 
 
-def get_state_nfl() -> dict:
-    return _current("state_nfl.json", f"{BASE_V1}/state/nfl", max_age_seconds=1800)
+def get_state_nfl(force: bool = False) -> dict:
+    return _current("state_nfl.json", f"{BASE_V1}/state/nfl", max_age_seconds=1800, force=force)
 
 
 # ---- per-league ----
@@ -93,17 +93,17 @@ def get_league_users(league_id: str) -> list:
                      max_age_seconds=1800)
 
 
-def get_rosters(league_id: str) -> list:
+def get_rosters(league_id: str, force: bool = False) -> list:
     return _current(f"rosters_{league_id}.json", f"{BASE_V1}/league/{league_id}/rosters",
-                     max_age_seconds=300)
+                     max_age_seconds=300, force=force)
 
 
-def get_matchups(league_id: str, week: int, is_past: bool) -> list:
+def get_matchups(league_id: str, week: int, is_past: bool, force: bool = False) -> list:
     name = f"matchups_{league_id}_wk{week:02d}.json"
     url = f"{BASE_V1}/league/{league_id}/matchups/{week}"
     if is_past:
-        return _immutable(name, url)
-    return _current(name, url, max_age_seconds=30)
+        return _immutable(name, url)  # a past week's matchups never change -- force is meaningless here
+    return _current(name, url, max_age_seconds=30, force=force)
 
 
 # ---- players + live schedule ----
@@ -126,7 +126,7 @@ def get_week_projections(season: str, week: int, season_type: str = "regular") -
                      f"{BASE}/projections/nfl/{season}/{week}", params=params, max_age_seconds=1800)
 
 
-def get_schedule(season: str, season_type: str = "regular") -> list:
+def get_schedule(season: str, season_type: str = "regular", force: bool = False) -> list:
     """Undocumented per-game schedule + live status, in Sleeper's own team codes
     (so it lines up with the player dump's `team` field with no crosswalk needed --
     unlike an ESPN-sourced schedule, which would need a hand-maintained code map).
@@ -139,4 +139,4 @@ def get_schedule(season: str, season_type: str = "regular") -> list:
     schedule path has no entries for those weeks, which would silently make
     every game_status None (i.e. "not live") for the entire playoffs."""
     return _current(f"schedule_{season_type}_{season}.json",
-                     f"{BASE}/schedule/nfl/{season_type}/{season}", max_age_seconds=30)
+                     f"{BASE}/schedule/nfl/{season_type}/{season}", max_age_seconds=30, force=force)
